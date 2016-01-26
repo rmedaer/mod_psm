@@ -1,9 +1,9 @@
 
 all: build
 
-build: mod_example.la
-	sudo apxs -i -a -n mod_example mod_example.la
+build: mod_cookies_encapsulation.la
+	sudo apxs -i -a -n mod_cookies_encapsulation mod_cookies_encapsulation.la
 	sudo service apache2 restart
 
-mod_example.la: mod_example.c
-	apxs -c mod_example.c
+mod_cookies_encapsulation.la: mod_cookies_encapsulation.c
+	apxs -c mod_cookies_encapsulation.c
