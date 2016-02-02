@@ -1,9 +1,9 @@
 
 all: build
 
-build: mod_cookies_encapsulation.la
-	sudo apxs -i -a -n mod_cookies_encapsulation mod_cookies_encapsulation.la
+build: mod_psm.la
+	sudo apxs -i -a -n psm mod_psm.la
 	sudo service apache2 restart
 
-mod_cookies_encapsulation.la: mod_cookies_encapsulation.c
-	apxs -c mod_cookies_encapsulation.c
+mod_psm.la: mod_psm.c mod_psm_utils.c mod_psm_cookies.c mod_psm_driver_redis.c *.h
+	apxs -DPSM_DEBUG=1 -lhiredis -ljansson -c mod_psm.c mod_psm_utils.c mod_psm_cookies.c mod_psm_driver_redis.c
