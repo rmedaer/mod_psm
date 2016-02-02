@@ -184,11 +184,29 @@ psm_cookie *parse_set_cookie(apr_pool_t *p, const char *header)
     return cookie;
 }
 
-void psm_table_set_cookie(apr_table_t *t, psm_cookie *cookie)
+void psm_write_set_cookie(apr_table_t *t, psm_cookie *cookie)
 {
     apr_pool_t *pool;
     apr_pool_create(&pool, NULL);
     const char *header = apr_pstrcat(pool, cookie->name, "=", cookie->value, NULL);
-    apr_table_set(t, "Set-Cookie", header);
+    apr_table_set(t, HEADER_SET_COOKIE, header);
+    apr_pool_destroy(pool);
+}
+
+void psm_write_cookie(apr_table_t *t, apr_array_header_t *cookies)
+{
+    apr_pool_t *pool;
+    char *str = "";
+    int i;
+
+    apr_pool_create(&pool, NULL);
+
+    // TODO optimize this ... memory (alloc) consuming a lot !!!
+    for (i = 0; i < cookies->nelts; i++) {
+        psm_cookie *cookie = ((psm_cookie **)cookies->elts)[i];
+        str = apr_pstrcat(pool, str, cookie->name, "=", cookie->value, "; ", NULL);
+    }
+    apr_table_set(t, HEADER_COOKIE, str);
+
     apr_pool_destroy(pool);
 }

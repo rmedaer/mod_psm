@@ -1,10 +1,35 @@
-/**
+/* Copyright (C) 2016 by Raphael Medaer
  *
- * NOTE: The internal module's logic is highly inspired from mod_rewrite for
- * configuraiton.
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
+/**
+ * @file mod_psm.h
+ * @author Raphael Medaer
+ * @date 2 Feb 2016
+ * @brief File containing core of Private State Manager module for Apache2.
+ *
+ * This file contains the base code of the module:
+ *
+ *  - Declaration of the Apache2 module.
+ *  - Handler for incoming requests.
+ *  - Filter for outgoing content of the requests.
+ *  - Configuration initialization functions.
+ *  - Handlers for Apache directives.
+ */
 
 #ifndef MOD_PSM_H
 #define MOD_PSM_H
@@ -52,7 +77,6 @@ typedef struct psm_server_conf {
 typedef struct psm_directory_conf {
     int          state;
     unsigned int state_set:1;
-    char        *context;
 } psm_directory_conf;
 
 typedef struct psm_request_vars {
@@ -78,5 +102,6 @@ const char *psm_set_driver(cmd_parms *cmd, void *cfg, const char *arg);
 const char *psm_set_driver_params(cmd_parms *cmd, void *cfg, const char *arg);
 void psm_hooks_register(apr_pool_t *p);
 int psm_parse_set_cookie(void *_data, const char *key, const char *value);
+void psm_map_cookies(request_rec *r, psm_driver *driver);
 
 #endif /* MOD_PSM_H */

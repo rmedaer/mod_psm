@@ -12,6 +12,9 @@
 
 #define PSM_ARRAY_INIT_SZ 2
 
+#define HEADER_COOKIE "Cookie"
+#define HEADER_SET_COOKIE "Set-Cookie"
+
 typedef struct psm_cookie {
     char      *name;
     char      *value;
@@ -38,7 +41,8 @@ char *cookie_get_name(apr_pool_t *p, const char *header);
 char *cookie_get_value(apr_pool_t *p, const char *header);
 apr_array_header_t *parse_cookie(apr_pool_t *p, const char *header);
 psm_cookie *parse_set_cookie(apr_pool_t *p, const char *header);
-void psm_table_set_cookie(apr_table_t *t, psm_cookie *cookie);
+void psm_write_set_cookie(apr_table_t *t, psm_cookie *cookie);
+void psm_write_cookie(apr_table_t *t, apr_array_header_t *cookies);
 
 
 #endif /* MOD_PSM_COOKIES_H */
