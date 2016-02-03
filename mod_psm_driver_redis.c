@@ -4,6 +4,7 @@
 typedef struct psm_redis_data {
     redisContext *context;
     apr_proc_mutex_t *mutex;
+    int expire;
 } psm_redis_data;
 
 int psm_redis_initialize(apr_pool_t *p, apr_table_t *args, void **_data)
@@ -11,17 +12,13 @@ int psm_redis_initialize(apr_pool_t *p, apr_table_t *args, void **_data)
     psm_redis_data **data = (psm_redis_data **)_data;
     redisContext *context;
     const char *host;
-    const char *_port;
-    int port;
+    const char *tmp;
+    int port = 6379;
+    int expire = 300;
 
-    if (! (host = apr_table_get(args, "host"))) {
-        host = "127.0.0.1";
-    }
-
-    if (! (_port = apr_table_get(args, "port"))) {
-        _port = "6379";
-    }
-    port = atoi(_port);
+    if (! (host = apr_table_get(args, "host"))) host = "127.0.0.1";
+    if (tmp = apr_table_get(args, "port")) port = atoi(tmp);
+    if (tmp = apr_table_get(args, "expire")) expire = atoi(tmp);
 
     ap_log_perror(APLOG_MARK, APLOG_NOTICE, 0, p, "psm_redis_initialize %s:%d", host, port);
 
@@ -40,6 +37,7 @@ int psm_redis_initialize(apr_pool_t *p, apr_table_t *args, void **_data)
 
     *data = (void *)apr_pcalloc(p, sizeof(psm_redis_data));
     (*data)->context = context;
+    (*data)->expire = expire;
 
     if (apr_proc_mutex_create(&(*data)->mutex, PSM_REDIS_MUTEX, APR_LOCK_PROC_PTHREAD, p) != APR_SUCCESS) return DONE;
 
@@ -62,7 +60,7 @@ int psm_redis_save_cookies(apr_pool_t *p, void *_data, apr_array_header_t *cooki
     // On error, trigger reconnection and retry
     redisReply *reply;
     do {
-        reply = redisCommand(data->context, "SETEX %s 100 %s", token, buffer);
+        reply = redisCommand(data->context, "SETEX %s %d %s", token, data->expire, buffer);
         if (! reply) {
             ap_log_perror(APLOG_MARK, APLOG_NOTICE, 0, p, "[redis] Attempt to reconnect Redis server");
             if (redisReconnect(data->context) == REDIS_OK) {
