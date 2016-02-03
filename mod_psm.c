@@ -17,7 +17,7 @@ int psm_parse_set_cookie(void *_data, const char *key, const char *value)
     *(psm_cookie**)apr_array_push(data->cookies) = cookie;
 
     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, data->request,
-        "Outgoing cookie: %s \"%s\" (secure:%d, httponly:%d)",
+        "Outgoing cookie %s: \"%s\" (secure:%d, httponly:%d)",
         cookie->name,
         cookie->value,
         cookie->secure,
@@ -69,7 +69,7 @@ apr_status_t psm_output_filter(ap_filter_t* f, apr_bucket_brigade* bb)
 
 // Insert output filter add the beginning of the request. Because there is not
 // any handler on outgoing content, we are using filter to replace cookies.
-// The filter is added only if the directive has been set. 
+// The filter is added only if the directive has been set.
 void psm_insert_output_filter(request_rec *r)
 {
     psm_directory_conf *conf;
@@ -112,7 +112,7 @@ void psm_map_cookies(request_rec *r, psm_driver *driver)
     char *token;
     psm_request_vars *vars;
     unsigned int found = 0;
-    
+
     // Fetch configuration of the server
     vars = (psm_request_vars *) apr_palloc(r->pool, sizeof(psm_request_vars));
 
@@ -170,10 +170,9 @@ void psm_map_cookies(request_rec *r, psm_driver *driver)
     }
 
     // Set variables of this request for the output filter
-    // TODO is it mandatory to set when `vars` is a pointer ? 
+    // TODO is it mandatory to set when `vars` is a pointer ?
     ap_set_module_config(r->request_config, &psm_module, vars);
 }
-
 
 // Create directory configuration.
 void *psm_config_directory_create(apr_pool_t *pool, char *context)
@@ -187,7 +186,6 @@ void *psm_config_directory_create(apr_pool_t *pool, char *context)
 
     return (void *)conf;
 }
-
 
 // Merge two directory configuations. It will enable the filtering depending the
 // child configuration.
@@ -206,7 +204,6 @@ void *psm_config_directory_merge(apr_pool_t *pool, void *_parent, void *_child)
 
     return (void *)conf;
 }
-
 
 // Create server configuration. By default, the filtering is disabled.
 void *psm_config_server_create(apr_pool_t *p, server_rec *s)
@@ -273,7 +270,7 @@ int psm_initialize(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_re
             PSM_USERDATA_KEY,
             apr_pool_cleanup_null,
             s->process->pool);
-        
+
         return OK;
     }
 
@@ -288,7 +285,9 @@ int psm_initialize(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_re
 
     // Initialize the selected driver
     conf->driver->data = (void *)apr_pcalloc(p, sizeof(void *));
-    conf->driver->initialize(p, conf->driver->params, conf->driver->data);
+    if (conf->driver->initialize(p, conf->driver->params, conf->driver->data) != OK) {
+        return DONE;
+    }
 
     ap_log_perror(APLOG_MARK, APLOG_NOTICE, 0, p,
         "Private State Manager module initialized !");
@@ -376,7 +375,7 @@ void psm_hooks_register(apr_pool_t *p)
     // before each request processing ...
     ap_hook_handler(psm_input_handler, NULL, NULL, APR_HOOK_REALLY_FIRST);
 
-    // register filter and add it in a insert_filter handler 
+    // register filter and add it in a insert_filter handler
     ap_register_output_filter(PSM_OUTPUT_FILTER_NAME, psm_output_filter, NULL, AP_FTYPE_RESOURCE);
     ap_hook_insert_filter(psm_insert_output_filter, NULL, NULL, APR_HOOK_MIDDLE);
 }
@@ -389,7 +388,6 @@ const command_rec psm_directives[] =
     AP_INIT_ITERATE("PrivateStateManagerDriverParams", psm_set_driver_params, NULL, RSRC_CONF, "Driver proprietary configuration."),
     { NULL }
 };
-
 
 module AP_MODULE_DECLARE_DATA psm_module =
 {

@@ -91,6 +91,7 @@ typedef struct psm_filter_data {
 apr_status_t psm_output_filter(ap_filter_t* f, apr_bucket_brigade* bb);
 void psm_insert_output_filter(request_rec *r);
 int psm_input_handler(request_rec *r);
+
 void *psm_config_directory_create(apr_pool_t *pool, char *context);
 void *psm_config_directory_merge(apr_pool_t *pool, void *_parent, void *_child);
 void *psm_config_server_create(apr_pool_t *p, server_rec *s);
