@@ -25,12 +25,21 @@ Let's have a look to the following schema :
 .           Set-Cookie: t=<token>           Set-Cookie: <data>
 ```
 
+## How-to build ?
+
+Please install autotools and follow the instructions:
+```
+./autogen.sh
+./configure [--with-apxs=<apxs path>]
+make
+sudo make install
+```
+
 ## Basic example
 
 It's not clear ? Ok, assuming a HTTP client and its server.
 In the following request, the server will set a cookie named "Key" with the
 value "Value".
-
 ```
 > GET /resource HTTP/1.1
 > Host: example.net
@@ -71,7 +80,6 @@ At the next request your client will send the following request:
 
 The token will be replaced by data previously set by your server. It's coming
 to the server like :
-
 ```
 > GET /resource HTTP/1.1
 > Host: example.net
