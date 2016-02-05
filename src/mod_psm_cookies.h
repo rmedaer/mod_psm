@@ -36,11 +36,12 @@ typedef struct psm_cookie {
 // JSON conversion functions
 json_t *cookie_tojson(psm_cookie *cookie);
 json_t *cookies_tojson(apr_array_header_t *cookies);
-psm_cookie *cookie_fromjson(apr_pool_t *p, json_t *root);
+int cookie_fromjson(apr_pool_t *p, psm_cookie *cookie, json_t *root);
 
 // Cookie serialization functions
 char *cookie_serialize(apr_pool_t *p, psm_cookie *cookie);
 char *cookies_serialize(apr_pool_t *p, apr_array_header_t *cookies);
+int cookie_unserialize(apr_pool_t *p, psm_cookie *cookie, char *buffer);
 int cookies_unserialize(apr_pool_t *p, apr_array_header_t *cookies, char *buffer);
 
 // HTTP parser functions

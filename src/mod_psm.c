@@ -175,6 +175,9 @@ void psm_map_incoming_cookies(request_rec *r, psm_driver *driver)
     // Create an output_cookies array
     out_cookies = apr_array_make(p, PSM_ARRAY_INIT_SZ, sizeof(psm_cookie *));
 
+    // Unset incoming cookies
+    apr_table_unset(r->headers_in, HEADER_COOKIE);
+
     // Fetch session cookies
     if (vars->st && driver->fetch_cookies(p, *driver->data, out_cookies, vars->st) == OK) {
         psm_write_cookie(r->headers_in, out_cookies);
@@ -188,9 +191,6 @@ void psm_map_incoming_cookies(request_rec *r, psm_driver *driver)
     } else {
         vars->pt = generate_token(p, PSM_TOKEN_LENGTH);
     }
-
-    // Unset incoming cookies
-    apr_table_unset(r->headers_in, HEADER_COOKIE);
 
     // Set variables of this request for the output filter
     // TODO is it mandatory to set when `vars` is a pointer ?

@@ -51,32 +51,46 @@ char *cookies_serialize(apr_pool_t *p, apr_array_header_t *cookies)
     return buffer;
 }
 
-psm_cookie *cookie_fromjson(apr_pool_t *p, json_t *root)
+int cookie_fromjson(apr_pool_t *p, psm_cookie *cookie, json_t *root)
 {
-    psm_cookie *cookie;
     json_t *name;
     json_t *value;
     json_t *max_age;
 
-    // Initialize cookie structure
-    cookie = (psm_cookie *)apr_pcalloc(p, sizeof(psm_cookie));
-
     // Fetch cookie name
     name = json_object_get(root, JSON_LABEL_NAME);
-    if ((! name) || (json_typeof(name) != JSON_STRING)) return NULL;
+    if ((! name) || (json_typeof(name) != JSON_STRING)) return DONE;
     cookie->name = apr_pstrdup(p, json_string_value(name));
 
     // Fetch cookie value
     value = json_object_get(root, JSON_LABEL_VALUE);
-    if ((! value) || (json_typeof(value) != JSON_STRING)) return NULL;
+    if ((! value) || (json_typeof(value) != JSON_STRING)) return DONE;
     cookie->value = apr_pstrdup(p, json_string_value(value));
 
     // Fetch cookie max_age
     max_age = json_object_get(root, JSON_LABEL_MAX_AGE);
-    if ((! max_age) || (json_typeof(max_age) != JSON_INTEGER)) return NULL;
+    if ((! max_age) || (json_typeof(max_age) != JSON_INTEGER)) return DONE;
     cookie->max_age = json_integer_value(max_age);
 
-    return cookie;
+    return OK;
+}
+
+int cookie_unserialize(apr_pool_t *p, psm_cookie *cookie, char *buffer)
+{
+    json_t *root;
+    json_error_t error;
+
+    // Load and parse JSON string
+    root = json_loads(buffer, 0, &error);
+
+    // Validate JSON object
+    if ((! root) || (json_typeof(root) != JSON_OBJECT)) return DONE;
+
+    cookie_fromjson(p, cookie, root);
+
+    json_decref(root);
+
+    return OK;
 }
 
 int cookies_unserialize(apr_pool_t *p, apr_array_header_t *cookies, char *buffer)
@@ -96,7 +110,13 @@ int cookies_unserialize(apr_pool_t *p, apr_array_header_t *cookies, char *buffer
     size = json_array_size(root);
 
     for (i = 0; i < size; i++) {
-        *(psm_cookie**)apr_array_push(cookies) = cookie_fromjson(p, json_array_get(root, i));
+        psm_cookie *cookie;
+
+        // Initialize cookie structure
+        cookie = (psm_cookie *)apr_pcalloc(p, sizeof(psm_cookie));
+        cookie_fromjson(p, cookie, json_array_get(root, i));
+
+        *(psm_cookie**)apr_array_push(cookies) = cookie;
     }
 
     json_decref(root);
@@ -202,7 +222,7 @@ psm_cookie *parse_set_cookie(apr_pool_t *p, const char *header)
                 ap_log_perror(APLOG_MARK, APLOG_ERR, 0, p, "Failed to read date: %s", value);
                 return NULL;
             }
-            
+
             cookie->max_age_set = 1;
             cookie->max_age = apr_time_sec(expires - now);
         }
