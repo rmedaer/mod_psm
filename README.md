@@ -2,7 +2,8 @@
 
 This repository contains a Apache2 module to manage a "Private State". From
 HTTP1/1 you can manage a state between requests within a specific domain.
-In HTTP protocol, this mechanism is also called "Cookies"; see [RFC6265](https://tools.ietf.org/html/rfc6265). So, by setting cookies
+In HTTP protocol, this mechanism is also called "Cookies";
+see [RFC6265](https://tools.ietf.org/html/rfc6265). So, by setting cookies
 (`Set-Cookie` header) you can put and share a state between in your state-less
 API(s). However anything ensure to your server that the client will not modify
 the content of these cookies (a.k.a. the state itself).
@@ -66,7 +67,6 @@ At the next request your client will send the following request:
 > Host: example.net
 > Accept: */*
 > Cookie: t=aec8d9a1czyu54qx
->
 ```
 
 The token will be replaced by data previously set by your server. It's coming
@@ -77,5 +77,4 @@ to the server like :
 > Host: example.net
 > Accept: */*
 > Cookie: Key=Value
->
 ```

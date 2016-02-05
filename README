@@ -1,0 +1,14 @@
+Private State Manager module for Apache2
+
+This repository contains a Apache2 module to manage a "Private State". From
+HTTP1/1 you can manage a state between requests within a specific domain.
+In HTTP protocol, this mechanism is also called "Cookies";
+see [RFC6265](https://tools.ietf.org/html/rfc6265). So, by setting cookies
+(`Set-Cookie` header) you can put and share a state between in your state-less
+API(s). However anything ensure to your server that the client will not modify
+the content of these cookies (a.k.a. the state itself).
+
+This "Private State Manager" is a Apache2 module which resolve this issue.
+On outgoing request, it will replace data within `Set-Cookies` headers with
+a token. When PSM detect a token in `Cookie` header of incoming headers, it
+will replace it with data previously set.
