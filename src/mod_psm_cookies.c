@@ -4,8 +4,9 @@ json_t *cookie_tojson(psm_cookie *cookie)
 {
     json_t *root = json_object();
 
-    json_object_set_new(root, "name", json_string(cookie->name));
-    json_object_set_new(root, "value", json_string(cookie->value));
+    json_object_set_new(root, JSON_LABEL_NAME, json_string(cookie->name));
+    json_object_set_new(root, JSON_LABEL_VALUE, json_string(cookie->value));
+    json_object_set_new(root, JSON_LABEL_MAX_AGE, json_integer(cookie->max_age));
 
     return root;
 }
@@ -55,19 +56,25 @@ psm_cookie *cookie_fromjson(apr_pool_t *p, json_t *root)
     psm_cookie *cookie;
     json_t *name;
     json_t *value;
+    json_t *max_age;
 
     // Initialize cookie structure
     cookie = (psm_cookie *)apr_pcalloc(p, sizeof(psm_cookie));
 
     // Fetch cookie name
-    name = json_object_get(root, "name");
+    name = json_object_get(root, JSON_LABEL_NAME);
     if ((! name) || (json_typeof(name) != JSON_STRING)) return NULL;
     cookie->name = apr_pstrdup(p, json_string_value(name));
 
     // Fetch cookie value
-    value = json_object_get(root, "value");
+    value = json_object_get(root, JSON_LABEL_VALUE);
     if ((! value) || (json_typeof(value) != JSON_STRING)) return NULL;
     cookie->value = apr_pstrdup(p, json_string_value(value));
+
+    // Fetch cookie max_age
+    max_age = json_object_get(root, JSON_LABEL_MAX_AGE);
+    if ((! max_age) || (json_typeof(max_age) != JSON_INTEGER)) return NULL;
+    cookie->max_age = json_integer_value(max_age);
 
     return cookie;
 }
@@ -82,7 +89,7 @@ int cookies_unserialize(apr_pool_t *p, apr_array_header_t *cookies, char *buffer
     // Load and parse JSON string
     root = json_loads(buffer, 0, &error);
 
-    // Validate JSON object 
+    // Validate JSON object
     if ((! root) || (json_typeof(root) != JSON_ARRAY)) return DONE;
 
     // Get number of cookies
@@ -171,14 +178,29 @@ psm_cookie *parse_set_cookie(apr_pool_t *p, const char *header)
         if (! strlen(token)) continue;
 
         name = cookie_get_name(p, token);
-        if (! strcasecmp(name, "secure"))
+        if (! strcasecmp(name, "secure")) {
             cookie->secure = 1;
-        else if (! strcasecmp(name, "httponly"))
+        } else if (! strcasecmp(name, "httponly")) {
             cookie->http_only = 1;
-        else if (! strcasecmp(name, "domain"))
+        } else if (! strcasecmp(name, "domain")) {
             cookie->domain = cookie_get_value(p, token);
-        else if (! strcasecmp(name, "path"))
+        } else if (! strcasecmp(name, "path")) {
             cookie->path = cookie_get_value(p, token);
+        } else if (! strcasecmp(name, "max-age")) {
+            cookie->max_age = atoi(cookie_get_value(p, token));
+        } else if (! strcasecmp(name, "expires")) {
+            char *value = cookie_get_value(p, token);
+            apr_time_t now = apr_time_now();
+            apr_time_t expires = apr_date_parse_rfc(value);
+
+            if (expires == APR_DATE_BAD) {
+                // TODO Throw error (may replace return cookie by status and add cookie as pointer)
+                ap_log_perror(APLOG_MARK, APLOG_ERR, 0, p, "Failed to read date: %s", value);
+                return NULL;
+            }
+
+            cookie->max_age = apr_time_sec(expires - now);
+        }
     }
 
     return cookie;

@@ -5,6 +5,7 @@
 #include <http_config.h>
 #include <http_log.h>
 #include <http_request.h>
+#include <apr_date.h>
 
 #include <jansson.h>
 
@@ -15,13 +16,18 @@
 #define HEADER_COOKIE "Cookie"
 #define HEADER_SET_COOKIE "Set-Cookie"
 
+#define JSON_LABEL_NAME "name"
+#define JSON_LABEL_VALUE "value"
+#define JSON_LABEL_DOMAIN "domain"
+#define JSON_LABEL_PATH "path"
+#define JSON_LABEL_MAX_AGE "max-age"
+
 typedef struct psm_cookie {
     char      *name;
     char      *value;
     char      *path;
     char      *domain;
-    int        expires;
-    int        max_age;
+    apr_int64_t max_age;
     short int  secure;
     short int  http_only;
 } psm_cookie;
