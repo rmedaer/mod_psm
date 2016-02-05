@@ -54,8 +54,10 @@
 #define PSM_ENGINE_DISABLED 0
 #define PSM_OUTPUT_FILTER_NAME "psm_output_filter"
 #define PSM_USERDATA_KEY "psm_post_config"
-#define PSM_TOKEN_NAME "t"
+#define PSM_COOKIE_SESSION_NAME "cs"
+#define PSM_COOKIE_PERSISTENT_NAME "cp"
 #define PSM_TOKEN_LENGTH 32
+#define PSM_DEFAULT_MAX_AGE 10
 
 module AP_MODULE_DECLARE_DATA psm_module;
 
@@ -80,17 +82,23 @@ typedef struct psm_directory_conf {
 } psm_directory_conf;
 
 typedef struct psm_request_vars {
-    char *token;
+    char *st;   // Session token
+    char *pt;   // Persistent token
 } psm_request_vars;
 
 typedef struct psm_filter_data {
     request_rec *request;
-    apr_array_header_t *cookies;
+    apr_array_header_t *sc;
+    apr_array_header_t *pc;
 } psm_filter_data;
 
 apr_status_t psm_output_filter(ap_filter_t* f, apr_bucket_brigade* bb);
 void psm_insert_output_filter(request_rec *r);
 int psm_input_handler(request_rec *r);
+
+void psm_map_outgoing_cookies(request_rec *r, psm_request_vars *vars, psm_server_conf *conf);
+void psm_map_incoming_cookies(request_rec *r, psm_driver *driver);
+char *psm_find_token(apr_pool_t *p, apr_array_header_t *cookies, const char *cookie_name);
 
 void *psm_config_directory_create(apr_pool_t *pool, char *context);
 void *psm_config_directory_merge(apr_pool_t *pool, void *_parent, void *_child);

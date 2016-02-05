@@ -14,12 +14,24 @@ int psm_parse_set_cookie(void *_data, const char *key, const char *value)
     psm_filter_data *data = (psm_filter_data *)_data;
     psm_cookie *cookie =  parse_set_cookie(data->request->pool, value);
 
-    *(psm_cookie**)apr_array_push(data->cookies) = cookie;
+    // Is it a session or a persistent cookie ?
+    //  - If it's a session cookie, we set a default internal expiration time
+    //  - If it's a persistent cookie, we use cookie parameters
+    if (! cookie->max_age_set) {
+        cookie->max_age = PSM_DEFAULT_MAX_AGE;
+        *(psm_cookie**)apr_array_push(data->sc) = cookie;
+    } else {
+        // TODO how to ? We have to remove the cookies...
+        if (cookie->max_age > 0) {
+            *(psm_cookie**)apr_array_push(data->pc) = cookie;
+        }
+    }
 
     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, data->request,
-        "Outgoing cookie %s: \"%s\" (secure:%d, httponly:%d)",
+        "Outgoing cookie %s: \"%s\" (maxage: %d, secure:%d, httponly:%d)",
         cookie->name,
         cookie->value,
+        cookie->max_age,
         cookie->secure,
         cookie->http_only);
 
@@ -32,7 +44,6 @@ int psm_parse_set_cookie(void *_data, const char *key, const char *value)
 apr_status_t psm_output_filter(ap_filter_t* f, apr_bucket_brigade* bb)
 {
     psm_request_vars *vars;
-    psm_filter_data *data;
     psm_server_conf *conf;
 
     // Fetch configuration of the server
@@ -43,28 +54,46 @@ apr_status_t psm_output_filter(ap_filter_t* f, apr_bucket_brigade* bb)
 
     // Fetch configuration created by `psm_input_handler`
     vars = (psm_request_vars *)ap_get_module_config(f->r->request_config, &psm_module);
-    if (vars == NULL) {
+    if (! vars) {
         // TODO GENERATE ERROR: 500
     }
 
-    // Parse and list every 'Set-Cookie' headers
-    data = (psm_filter_data *)apr_palloc(f->r->pool, sizeof(psm_filter_data));
-    data->request = f->r;
-    data->cookies = apr_array_make(f->r->pool, PSM_ARRAY_INIT_SZ, sizeof(psm_cookie *));
-    apr_table_do(psm_parse_set_cookie, data, f->r->headers_out, HEADER_SET_COOKIE, NULL);
-
-    // Let the driver save cookies
-    conf->driver->save_cookies(f->r->pool, *conf->driver->data, data->cookies, vars->token);
-
-    // Replace outgoing "Set-Cookie" header by session token
-    psm_write_set_cookie(f->r->headers_out, &(psm_cookie) {
-        PSM_TOKEN_NAME,
-        vars->token,
-    });
+    psm_map_outgoing_cookies(f->r, vars, conf);
 
     // Remove this filter and go to next one
     ap_remove_output_filter(f);
     return ap_pass_brigade(f->next, bb);
+}
+
+void psm_map_outgoing_cookies(request_rec *r, psm_request_vars *vars, psm_server_conf *conf)
+{
+    psm_filter_data data;
+    data = (psm_filter_data){r,
+        apr_array_make(r->pool, PSM_ARRAY_INIT_SZ, sizeof(psm_cookie *)),
+        apr_array_make(r->pool, PSM_ARRAY_INIT_SZ, sizeof(psm_cookie *))
+    };
+
+    // Parse and list every 'Set-Cookie' headers
+    apr_table_do(psm_parse_set_cookie, &data, r->headers_out, HEADER_SET_COOKIE, NULL);
+
+    // Let the driver save session cookies and persistent cookies
+    conf->driver->save_cookies(r->pool, *conf->driver->data, data.sc, vars->st);
+    conf->driver->save_cookies(r->pool, *conf->driver->data, data.pc, vars->pt);
+
+    // Unset outgoing cookies
+    apr_table_unset(r->headers_out, HEADER_SET_COOKIE);
+
+    // Replace outgoing "Set-Cookie" header by session token
+    psm_write_set_cookie(r->headers_out, &(psm_cookie) {
+        PSM_COOKIE_SESSION_NAME,
+        vars->st,
+    });
+
+    psm_write_set_cookie(r->headers_out, &(psm_cookie) {
+        PSM_COOKIE_PERSISTENT_NAME,
+        vars->pt,
+        // TODO put maximum time of persistent cookies
+    });
 }
 
 // Insert output filter add the beginning of the request. Because there is not
@@ -97,8 +126,22 @@ int psm_input_handler(request_rec *r)
     s_conf = (psm_server_conf*) ap_get_module_config(r->server->module_config, &psm_module);
 
     // Execute the mapping
-    psm_map_cookies(r, s_conf->driver);
+    psm_map_incoming_cookies(r, s_conf->driver);
     return DECLINED;
+}
+
+char *psm_find_token(apr_pool_t *p, apr_array_header_t *cookies, const char *cookie_name)
+{
+    int i;
+    for (i = 0; i < cookies->nelts; i++) {
+        psm_cookie *cookie = ((psm_cookie **)cookies->elts)[i];
+
+        if (! strcasecmp(cookie->name, cookie_name) && strlen(cookie->value)) {
+            return apr_pstrdup(p, cookie->value);
+        }
+     }
+
+     return NULL;
 }
 
 // Replace the incoming token from the cookies to the data set from driver
@@ -106,68 +149,48 @@ int psm_input_handler(request_rec *r)
 // one and set it in request variables for the output filter.
 //
 // TODO: It should be useful to put the token into a special header or cookie.
-void psm_map_cookies(request_rec *r, psm_driver *driver)
+void psm_map_incoming_cookies(request_rec *r, psm_driver *driver)
 {
     const char *header;
-    char *token;
     psm_request_vars *vars;
-    unsigned int found = 0;
+    apr_array_header_t *in_cookies;
+    apr_array_header_t *out_cookies;
+    apr_pool_t *p = r->pool;
 
     // Fetch configuration of the server
-    vars = (psm_request_vars *) apr_palloc(r->pool, sizeof(psm_request_vars));
+    vars = (psm_request_vars *) apr_palloc(p, sizeof(psm_request_vars));
+    vars->st = NULL;
+    vars->pt = NULL;
 
     // Look at `Cookie` header to get private state cookie
     header = apr_table_get(r->headers_in, HEADER_COOKIE);
     if (header != NULL) {
-        int i;
-        apr_array_header_t *cookies;
-
         // Parse incoming cookies
-        cookies = parse_cookie(r->pool, header);
+        in_cookies = parse_cookie(p, header);
 
-        // Test if the private state cookie is set and contains a token
-        for (i = 0; i < cookies->nelts && ! found; i++) {
-            psm_cookie *cookie = ((psm_cookie **)cookies->elts)[i];
-
-            if (! strcasecmp(cookie->name, PSM_TOKEN_NAME) && strlen(cookie->value)) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r,
-                    "Private token detected: %s", cookie->value);
-
-                vars->token = apr_pstrdup(r->pool, cookie->value);
-                found = 1;
-            }
-        }
+        vars->st = psm_find_token(p, in_cookies, PSM_COOKIE_SESSION_NAME);
+        vars->pt = psm_find_token(p, in_cookies, PSM_COOKIE_PERSISTENT_NAME);
     }
 
-    // Try to retrieve cookies from the driver if we found the private state cookie token
-    if (found) {
-        apr_array_header_t *cookies;
+    // Create an output_cookies array
+    out_cookies = apr_array_make(p, PSM_ARRAY_INIT_SZ, sizeof(psm_cookie *));
 
-        // Initialize Apache array with the good size
-        cookies = apr_array_make(r->pool, PSM_ARRAY_INIT_SZ, sizeof(psm_cookie *));
-
-        // Fetch "data" cookies from the driver (aka db) and write them
-        if (driver->fetch_cookies(r->pool, *driver->data, cookies, vars->token) == OK) {
-            psm_write_cookie(r->headers_in, cookies);
-        }
-
-        // If we didn't find it, trigger the token generation
-        else {
-            found = 0;
-        }
+    // Fetch session cookies
+    if (vars->st && driver->fetch_cookies(p, *driver->data, out_cookies, vars->st) == OK) {
+        psm_write_cookie(r->headers_in, out_cookies);
+    } else {
+        vars->st = generate_token(p, PSM_TOKEN_LENGTH);
     }
 
-    // Re-check in case of fetch_cookies function failed
-    if (! found) {
-        // Generate a random token
-        vars->token = generate_token(r->pool, PSM_TOKEN_LENGTH);
-
-        // Unset incoming cookies
-        apr_table_unset(r->headers_in, HEADER_COOKIE);
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r,
-            "Not any private token found. New token set: %s", vars->token);
+    // Fetch persistent cookies
+    if (vars->pt && driver->fetch_cookies(p, *driver->data, out_cookies, vars->pt) == OK) {
+        psm_write_cookie(r->headers_in, out_cookies);
+    } else {
+        vars->pt = generate_token(p, PSM_TOKEN_LENGTH);
     }
+
+    // Unset incoming cookies
+    apr_table_unset(r->headers_in, HEADER_COOKIE);
 
     // Set variables of this request for the output filter
     // TODO is it mandatory to set when `vars` is a pointer ?

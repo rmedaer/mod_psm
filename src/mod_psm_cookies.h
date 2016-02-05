@@ -23,13 +23,14 @@
 #define JSON_LABEL_MAX_AGE "max-age"
 
 typedef struct psm_cookie {
-    char      *name;
-    char      *value;
-    char      *path;
-    char      *domain;
+    char       *name;
+    char       *value;
+    char       *path;
+    char       *domain;
     apr_int64_t max_age;
-    short int  secure;
-    short int  http_only;
+    short int   max_age_set;
+    short int   secure;
+    short int   http_only;
 } psm_cookie;
 
 // JSON conversion functions
@@ -48,6 +49,7 @@ char *cookie_get_value(apr_pool_t *p, const char *header);
 apr_array_header_t *parse_cookie(apr_pool_t *p, const char *header);
 psm_cookie *parse_set_cookie(apr_pool_t *p, const char *header);
 void psm_write_set_cookie(apr_table_t *t, psm_cookie *cookie);
+void psm_write_set_cookies(apr_table_t *t, apr_array_header_t *cookies);
 void psm_write_cookie(apr_table_t *t, apr_array_header_t *cookies);
 
 

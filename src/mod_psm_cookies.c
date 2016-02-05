@@ -171,6 +171,9 @@ psm_cookie *parse_set_cookie(apr_pool_t *p, const char *header)
     cookie->name  = cookie_get_name(p, token);
     cookie->value = cookie_get_value(p, token);
 
+    // By default, max_age param is not set even we parse it
+    cookie->max_age_set = 0;
+
     while ((token = apr_strtok(NULL, ";", &next)) != NULL) {
         char *name;
 
@@ -187,6 +190,7 @@ psm_cookie *parse_set_cookie(apr_pool_t *p, const char *header)
         } else if (! strcasecmp(name, "path")) {
             cookie->path = cookie_get_value(p, token);
         } else if (! strcasecmp(name, "max-age")) {
+            cookie->max_age_set = 1;
             cookie->max_age = atoi(cookie_get_value(p, token));
         } else if (! strcasecmp(name, "expires")) {
             char *value = cookie_get_value(p, token);
@@ -198,7 +202,8 @@ psm_cookie *parse_set_cookie(apr_pool_t *p, const char *header)
                 ap_log_perror(APLOG_MARK, APLOG_ERR, 0, p, "Failed to read date: %s", value);
                 return NULL;
             }
-
+            
+            cookie->max_age_set = 1;
             cookie->max_age = apr_time_sec(expires - now);
         }
     }
@@ -211,8 +216,17 @@ void psm_write_set_cookie(apr_table_t *t, psm_cookie *cookie)
     apr_pool_t *pool;
     apr_pool_create(&pool, NULL);
     const char *header = apr_pstrcat(pool, cookie->name, "=", cookie->value, NULL);
-    apr_table_set(t, HEADER_SET_COOKIE, header);
+    apr_table_add(t, HEADER_SET_COOKIE, header);
     apr_pool_destroy(pool);
+}
+
+
+void psm_write_set_cookies(apr_table_t *t, apr_array_header_t *cookies)
+{
+    int i;
+    for (i = 0; i < cookies->nelts; i++) {
+        psm_write_set_cookie(t, ((psm_cookie **)cookies->elts)[i]);
+    }
 }
 
 void psm_write_cookie(apr_table_t *t, apr_array_header_t *cookies)
