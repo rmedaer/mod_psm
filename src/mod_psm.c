@@ -21,10 +21,7 @@ int psm_parse_set_cookie(void *_data, const char *key, const char *value)
         cookie->max_age = PSM_DEFAULT_MAX_AGE;
         *(psm_cookie**)apr_array_push(data->sc) = cookie;
     } else {
-        // TODO how to ? We have to remove the cookies...
-        if (cookie->max_age > 0) {
-            *(psm_cookie**)apr_array_push(data->pc) = cookie;
-        }
+        *(psm_cookie**)apr_array_push(data->pc) = cookie;
     }
 
     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, data->request,
