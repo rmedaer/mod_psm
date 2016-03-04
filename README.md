@@ -15,15 +15,7 @@ will replace it with data previously set.
 
 Let's have a look to the following schema :
 
-```
-.           GET /resources                  GET /resources
-.           Cookie: t=<token>               Cookie: <data>
-. ┌───────┐                       ┌───────┐                       ┌───────┐
-. │  CLI  ├──────────────────────>│  PSM  ├──────────────────────>│  API  │
-. └───────┘                       └───────┘                       └───────┘
-.           200 OK                          200 OK
-.           Set-Cookie: t=<token>           Set-Cookie: <data>
-```
+![alt tag](https://raw.githubusercontent.com/rmedaer/mod_psm/master/doc/diagram.png)
 
 ## How-to build ?
 
