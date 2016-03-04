@@ -1,11 +1,11 @@
 seqdiag {
   edge_length = 250;
-  span_height = 10;
+  span_height = 14;
 
   CLI; PSM; API;
 
   CLI  -> PSM [label = "GET /resources\nCookie: t=<token>"];
-          PSM  -> API [label = "GET /resouces\nCookie: <data>"];
+          PSM  -> API [label = "GET /resources\nCookie: <data>"];
           PSM <-- API [label = "200 OK\nSet-Cookie: <data>"];
   CLI <-- PSM [label = "200 OK\nSet-Cookie: t=<token>"];
 }
